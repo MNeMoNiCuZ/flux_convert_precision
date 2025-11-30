@@ -121,7 +121,8 @@ flux_convert_precision/
 Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Credits
-- [Original code](https://github.com/bmaltais/kohya_ss)
+Original code
+- [bmaltis/kohya_ss](https://github.com/bmaltais/kohya_ss)
 
 Built with:
 - [PyTorch](https://pytorch.org/)

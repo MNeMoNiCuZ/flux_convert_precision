@@ -1,17 +1,15 @@
 # Flux Model Precision Converter
 
-A CPU-optimized tool for converting Flux AI models between different precision formats (FP32, FP16, BF16, FP8). This tool simplifies precision conversion with an intuitive interface and robust memory management.
+A tool for converting Flux AI models between different precision formats (FP32, FP16, BF16, FP8). This tool simplifies precision conversion with an intuitive interface and robust memory management.
 
 ## Features
-
-- 🚀 **CPU-Optimized**: Runs efficiently on CPU, avoiding VRAM limitations
-- 🎯 **Multiple Precisions**: Support for FP32, FP16, BF16, and FP8 formats
-- 📊 **Interactive Mode**: User-friendly guided interface for batch conversions
-- ⚡ **CLI Mode**: Command-line interface for scripting and automation
-- 💾 **Memory Efficient**: Automatic memory-efficient mode for large models (>20GB)
-- 🎨 **Smart Filename Handling**: Preserves precision tag casing (e.g., `_FP16` → `_BF16`)
-- ✅ **Batch Processing**: Convert multiple files to multiple precisions in one session
-- 📈 **Results Summary**: Detailed conversion results with file sizes and status
+- **Multiple Precisions**: Support for FP32, FP16, BF16, and FP8 formats
+- **Interactive Mode**: User-friendly guided interface for batch conversions
+- **CLI Mode**: Command-line interface for scripting and automation
+- **Memory Efficient**: Automatic memory-efficient mode for large models (>20GB)
+- **Smart Filename Handling**: Preserves precision tag casing (e.g., `_FP16` → `_BF16`)
+- **Batch Processing**: Convert multiple files to multiple precisions in one session
+- **Results Summary**: Detailed conversion results with file sizes and status
 
 ## System Requirements
 
@@ -43,45 +41,6 @@ You'll be guided through:
 2. **Precision Detection**: Automatically detects input precision from model files
 3. **Output Selection**: Choose target precisions from a formatted table
 4. **Batch Conversion**: Converts all files automatically with progress tracking
-
-**Example Session:**
-```
-======================================================================
-FLUX MODEL PRECISION CONVERTER - Interactive Mode
-======================================================================
-
-Input path(s) (absolute or relative):
-C:\Models\MyFluxModel_FP16.safetensors
-Added: C:/Models/MyFluxModel_FP16.safetensors
-
-Press Enter again to finish, or paste another path:
-
-
-======================================================================
-STEP 1: DETECTING INPUT PRECISIONS
-======================================================================
-
-1. MyFluxModel_FP16.safetensors
-   Input precision: float16
-
-
-======================================================================
-STEP 2: SELECT OUTPUT PRECISION(S)
-======================================================================
-
-Available precision formats:
--------------------------------------------------------------------------------------
-#    Precision    Est. Size    Status                         Input Models
--------------------------------------------------------------------------------------
-1    FP32         44.3 GB      Available                      -
-2    FP16         22 GB        Already in input               Models: 1
-3    BF16         22 GB        Available                      -
-4    FP8          11 GB        Available                      -
--------------------------------------------------------------------------------------
-
-Enter your choice(s) (1-4): 3
-Selected: BF16
-```
 
 ### CLI Mode
 
@@ -122,7 +81,7 @@ Precision conversion is primarily I/O-bound (reading/writing large files). CPU p
 
 - **FP16 → FP32** (22GB model): ~5-10 seconds
 - **Bottleneck**: Disk speed, not CPU compute
-- **Memory**: Uses system RAM (typically larger than VRAM)
+- **Memory**: Uses system RAM
 
 ## Advanced Features
 
@@ -140,13 +99,6 @@ In interactive mode, you can:
 - Convert to **multiple precisions** in one session
 - Track results with a detailed summary table
 
-### Memory Management
-
-The tool automatically enables memory-efficient mode for files >20GB, which:
-- Loads tensors one at a time instead of all at once
-- Reduces peak memory usage significantly
-- Prevents out-of-memory errors on systems with limited RAM
-
 ## File Structure
 
 ```
@@ -163,21 +115,13 @@ flux_convert_precision/
 **Issue**: "File not found" error
 - **Solution**: Ensure the file path is correct. The tool supports both absolute and relative paths.
 
-**Issue**: Out of memory error
-- **Solution**: Use the `--mem_eff` flag in CLI mode. In interactive mode, it's automatically enabled for large files.
-
-**Issue**: Conversion is slow
-- **Solution**: This is expected for large models. The bottleneck is usually disk I/O. Consider using an SSD for faster read/write speeds.
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
 
-## License
-
-This project is provided as-is for the AI community. Please respect model licenses when converting models.
-
 ## Credits
+- [Original code](https://github.com/bmaltais/kohya_ss)
 
 Built with:
 - [PyTorch](https://pytorch.org/)

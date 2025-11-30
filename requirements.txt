@@ -1,0 +1,4 @@
+safetensors
+tqdm
+colorama
+packaging

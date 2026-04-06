@@ -108,7 +108,9 @@ flux_convert_precision/
 ├── converter.py        # Core conversion logic
 ├── requirements.txt    # Python dependencies
 ├── venv_create.bat     # Virtual environment setup script
+├── zit_transformer_checkpoint_converter.py     # Converter for saved ComfyUI checkpoints into trainable non-sharded checkpoints
 └── README.md           # This file
+
 ```
 
 ## Troubleshooting
@@ -130,3 +132,79 @@ Built with:
 - [Safetensors](https://github.com/huggingface/safetensors)
 - [tqdm](https://github.com/tqdm/tqdm)
 - [colorama](https://github.com/tartley/colorama)
+
+
+
+# ZiT Transformer Checkpoint Converter
+
+This document is specifically for:
+
+- `transformer/zit_transformer_checkpoint_converter.py`
+
+## What this tool does
+
+The converter rewrites a ZiT-style single-file safetensors checkpoint from a
+fused attention layout to a split attention layout expected by many ZiT loader
+implementations.
+
+It performs these transformations:
+
+- Splits fused `attention.qkv.weight` into:
+  - `attention.to_q.weight`
+  - `attention.to_k.weight`
+  - `attention.to_v.weight`
+- Normalizes key naming differences:
+  - strips `model.diffusion_model.` prefix
+  - `attention.q_norm` -> `attention.norm_q`
+  - `attention.k_norm` -> `attention.norm_k`
+  - `attention.out` -> `attention.to_out.0`
+  - `x_embedder.*` -> `all_x_embedder.2-1.*`
+  - `final_layer.*` -> `all_final_layer.2-1.*`
+- Always writes a matching checkpoint index:
+  - `<output>.index.json`
+
+## Precision support
+
+Input is not limited to BF16.
+
+The script preserves source tensor dtypes and does not force casting, so it can
+be used with BF16 / FP16 / FP32 checkpoints as long as the expected ZiT key
+structure applies.
+
+## Usage
+
+### Interactive mode (no arguments)
+
+```bash
+python transformer/zit_transformer_checkpoint_converter.py
+```
+
+Prompts:
+
+1. Source checkpoint path
+2. Output file name
+
+Behavior:
+
+- Accepts local or absolute paths (Windows/Linux style).
+- Writes output into the same directory as the source file.
+- Writes `<output>.index.json` next to the output file.
+
+### CLI mode
+
+```bash
+python transformer/zit_transformer_checkpoint_converter.py \
+  --src "path/to/source_checkpoint.safetensors" \
+  --out "path/to/output_checkpoint.safetensors"
+```
+
+Optional:
+
+```bash
+python transformer/zit_transformer_checkpoint_converter.py \
+  --src "path/to/source_checkpoint.safetensors" \
+  --out "path/to/output_checkpoint.safetensors" \
+  --reference-index "path/to/reference.index.json"
+```
+
+Use `--skip-compare` to disable key-set comparison output.

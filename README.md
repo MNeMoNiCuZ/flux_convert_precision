@@ -139,7 +139,7 @@ Built with:
 
 This document is specifically for:
 
-- `transformer/zit_transformer_checkpoint_converter.py`
+- `zit_transformer_checkpoint_converter.py`
 
 ## What this tool does
 
@@ -176,7 +176,7 @@ structure applies.
 ### Interactive mode (no arguments)
 
 ```bash
-python transformer/zit_transformer_checkpoint_converter.py
+python zit_transformer_checkpoint_converter.py
 ```
 
 Prompts:
@@ -193,7 +193,7 @@ Behavior:
 ### CLI mode
 
 ```bash
-python transformer/zit_transformer_checkpoint_converter.py \
+python zit_transformer_checkpoint_converter.py \
   --src "path/to/source_checkpoint.safetensors" \
   --out "path/to/output_checkpoint.safetensors"
 ```
@@ -201,7 +201,7 @@ python transformer/zit_transformer_checkpoint_converter.py \
 Optional:
 
 ```bash
-python transformer/zit_transformer_checkpoint_converter.py \
+python zit_transformer_checkpoint_converter.py \
   --src "path/to/source_checkpoint.safetensors" \
   --out "path/to/output_checkpoint.safetensors" \
   --reference-index "path/to/reference.index.json"

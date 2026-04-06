@@ -1,6 +1,6 @@
 # Safetensors Model Precision Converter
 
-A tool for converting Flux and Z-Image Turbo AI models between different precision formats (FP32, FP16, BF16, FP8). This tool simplifies precision conversion with an intuitive interface and robust memory management. It's possible it would work with other models too, but I have only tested with these.
+A tool for converting safetensor AI models between different precision formats (FP32, FP16, BF16, FP8). This tool simplifies precision conversion with an intuitive interface and robust memory management.
 
 ## Features
 - **Multiple Precisions**: Support for FP32, FP16, BF16, and FP8 formats
@@ -10,6 +10,7 @@ A tool for converting Flux and Z-Image Turbo AI models between different precisi
 - **Smart Filename Handling**: Preserves precision tag casing (e.g., `_FP16` → `_BF16`)
 - **Batch Processing**: Convert multiple files to multiple precisions in one session
 - **Results Summary**: Detailed conversion results with file sizes and status
+- **Tested Architectures**: Flux, Z-Image Turbo
 
 ## System Requirements
 

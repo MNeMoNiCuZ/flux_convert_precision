@@ -49,6 +49,15 @@ def setup_logging():
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# Behavior Toggles
+# ============================================================================
+
+# When False, interactive mode skips conversions where the target
+# precision already exists in the input model.
+# Set to True to force conversion/saving anyway (e.g., force an FP16 output).
+FORCE_RECONVERT_EXISTING_PRECISION = True
+
 
 # ============================================================================
 # Utility Functions (copied from library/utils.py)
@@ -282,6 +291,104 @@ def normalize_path(path_str: str) -> str:
     normalized = Path(path_str).resolve()
     # Convert to string with forward slashes
     return str(normalized).replace("\\", "/")
+
+
+def _shape_numel(shape: List[int]) -> int:
+    """Compute number of elements for a tensor shape."""
+    if not shape:
+        return 1
+    numel = 1
+    for dim in shape:
+        numel *= int(dim)
+    return numel
+
+
+def _dtype_code_to_display(dtype_code: str) -> str:
+    """Convert safetensors dtype code into a user-facing dtype label."""
+    mapping = {
+        "F64": "float64",
+        "F32": "float32",
+        "F16": "float16",
+        "BF16": "bfloat16",
+        "F8_E4M3": "float8 (E4M3)",
+        "F8_E5M2": "float8 (E5M2)",
+        "I64": "int64",
+        "I32": "int32",
+        "I16": "int16",
+        "I8": "int8",
+        "U8": "uint8",
+        "BOOL": "bool",
+    }
+    return mapping.get(dtype_code, dtype_code.lower())
+
+
+def _dtype_code_to_precision_key(dtype_code: str) -> Optional[str]:
+    """Map safetensors dtype code to precision menu key."""
+    mapping = {
+        "F32": "fp32",
+        "F16": "fp16",
+        "BF16": "bf16",
+        "F8_E4M3": "fp8",
+        "F8_E5M2": "fp8",
+    }
+    return mapping.get(dtype_code)
+
+
+def analyze_model_precisions(file_name: str) -> Dict[str, Any]:
+    """
+    Analyze tensor dtypes in a safetensors file using header metadata only.
+
+    Returns:
+        Dict containing:
+            - dtype_tensor_counts: {dtype_code: tensor_count}
+            - dtype_numel_counts: {dtype_code: total_numel}
+            - present_precision_keys: sorted list of fp32/fp16/bf16/fp8 present
+            - is_mixed: True when more than one dtype exists
+            - primary_dtype_code: dtype with highest total numel
+            - primary_precision_key: fp32/fp16/bf16/fp8 for primary dtype, if any
+            - display_format: "float16" or "Mixed (...)"
+    """
+    dtype_tensor_counts: Dict[str, int] = {}
+    dtype_numel_counts: Dict[str, int] = {}
+
+    with MemoryEfficientSafeOpen(file_name) as f:
+        for key in f.keys():
+            tensor_meta = f.header.get(key, {})
+            dtype_code = tensor_meta.get("dtype")
+            if not dtype_code:
+                continue
+
+            dtype_tensor_counts[dtype_code] = dtype_tensor_counts.get(dtype_code, 0) + 1
+
+            shape = tensor_meta.get("shape", [])
+            numel = _shape_numel(shape)
+            dtype_numel_counts[dtype_code] = dtype_numel_counts.get(dtype_code, 0) + numel
+
+    present_precision_keys = set()
+    for dtype_code in dtype_tensor_counts:
+        precision_key = _dtype_code_to_precision_key(dtype_code)
+        if precision_key:
+            present_precision_keys.add(precision_key)
+
+    sorted_by_numel = sorted(dtype_numel_counts.items(), key=lambda kv: kv[1], reverse=True)
+    primary_dtype_code = sorted_by_numel[0][0] if sorted_by_numel else None
+    primary_precision_key = _dtype_code_to_precision_key(primary_dtype_code) if primary_dtype_code else None
+
+    if len(sorted_by_numel) <= 1:
+        display_format = _dtype_code_to_display(primary_dtype_code) if primary_dtype_code else "unknown"
+    else:
+        mixed_parts = [_dtype_code_to_display(dtype_code) for dtype_code, _ in sorted_by_numel]
+        display_format = f"Mixed ({', '.join(mixed_parts)})"
+
+    return {
+        "dtype_tensor_counts": dtype_tensor_counts,
+        "dtype_numel_counts": dtype_numel_counts,
+        "present_precision_keys": sorted(present_precision_keys),
+        "is_mixed": len(dtype_tensor_counts) > 1,
+        "primary_dtype_code": primary_dtype_code,
+        "primary_precision_key": primary_precision_key,
+        "display_format": display_format,
+    }
 
 
 def detect_precision_from_filename(filename: str) -> Optional[str]:

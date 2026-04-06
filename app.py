@@ -26,9 +26,6 @@ import os
 import sys
 from typing import List
 
-import torch
-from safetensors import safe_open
-
 # Import colorama for colored output
 try:
     from colorama import init, Fore, Style
@@ -51,7 +48,8 @@ from converter import (
     detect_precision_from_filename,
     generate_output_filename,
     convert_precision,
-    str_to_dtype,
+    analyze_model_precisions,
+    FORCE_RECONVERT_EXISTING_PRECISION,
 )
 
 
@@ -116,14 +114,15 @@ def get_input_files() -> List[str]:
     return paths
 
 
-def get_precision_choice(input_files: List[str] = None, file_precisions: dict = None) -> List[str]:
+def get_precision_choice(input_files: List[str] = None, file_existing_precision_keys: dict = None) -> List[str]:
     """
     Display precision menu as a table and get user choice(s).
     Supports multiple selections.
     
     Args:
         input_files: List of input file paths (numbered 1, 2, 3...)
-        file_precisions: Dictionary mapping file paths to detected precision strings
+        file_existing_precision_keys: Dictionary mapping file paths to precision keys
+                                      considered "already in input" for the menu
     
     Returns:
         List of selected precision strings
@@ -140,20 +139,12 @@ def get_precision_choice(input_files: List[str] = None, file_precisions: dict = 
         'fp8': []
     }
     
-    if input_files and file_precisions:
+    if input_files and file_existing_precision_keys:
         for idx, filepath in enumerate(input_files, 1):
-            detected = file_precisions.get(filepath)
-            if detected:
-                # Normalize detected precision to our standard names
-                detected_lower = detected.lower()
-                if 'float32' in detected_lower or 'fp32' in detected_lower:
-                    precision_to_indices['fp32'].append(idx)
-                elif 'float16' in detected_lower or 'fp16' in detected_lower:
-                    precision_to_indices['fp16'].append(idx)
-                elif 'bfloat16' in detected_lower or 'bf16' in detected_lower:
-                    precision_to_indices['bf16'].append(idx)
-                elif 'float8' in detected_lower or 'fp8' in detected_lower:
-                    precision_to_indices['fp8'].append(idx)
+            detected_keys = file_existing_precision_keys.get(filepath, [])
+            for detected_key in detected_keys:
+                if detected_key in precision_to_indices and idx not in precision_to_indices[detected_key]:
+                    precision_to_indices[detected_key].append(idx)
             
             # Also check for existing output files in the same folder
             directory = os.path.dirname(filepath)
@@ -210,9 +201,15 @@ def get_precision_choice(input_files: List[str] = None, file_precisions: dict = 
     if COLORAMA_AVAILABLE:
         print(f"\nLegend:")
         print(f"  {Fore.GREEN}Green{Style.RESET_ALL}  = New precision (will convert)")
-        print(f"  {Fore.YELLOW}Orange{Style.RESET_ALL} = Existing precision (will skip if selected)")
+        if FORCE_RECONVERT_EXISTING_PRECISION:
+            print(f"  {Fore.YELLOW}Orange{Style.RESET_ALL} = Existing precision (will still convert)")
+        else:
+            print(f"  {Fore.YELLOW}Orange{Style.RESET_ALL} = Existing precision (will skip if selected)")
     else:
-        print(f"\nNote: Precisions marked 'Already in input' will be skipped if selected")
+        if FORCE_RECONVERT_EXISTING_PRECISION:
+            print(f"\nNote: Precisions marked 'Already in input' will still convert")
+        else:
+            print(f"\nNote: Precisions marked 'Already in input' will be skipped if selected")
     
     print("\nYou can select multiple formats (comma-separated or not, e.g., '2,4' or '24')")
     print("\nEnter your choice(s) (1-4): ")
@@ -408,6 +405,7 @@ def run_interactive_mode():
         print("="*70)
         
         file_precisions = {}
+        file_existing_precision_keys = {}
         file_casing = {}  # Store whether input used uppercase (True) or lowercase (False)
         
         for idx, input_file in enumerate(input_files, 1):
@@ -435,16 +433,23 @@ def run_interactive_mode():
                 file_casing[input_file] = False
             
             try:
-                with safe_open(input_file, framework="pt", device="cpu") as f:
-                    keys = list(f.keys())
-                    if keys:
-                        sample_tensor = f.get_tensor(keys[0])
-                        detected_precision = str(sample_tensor.dtype).replace('torch.', '')
-                        print(f"   Input precision: {detected_precision}")
-                        file_precisions[input_file] = detected_precision
+                analysis = analyze_model_precisions(input_file)
+                display_format = analysis.get("display_format", "unknown")
+                present_keys = analysis.get("present_precision_keys", [])
+                primary_key = analysis.get("primary_precision_key")
+                is_mixed = analysis.get("is_mixed", False)
+                print(f"   Input format: {display_format}")
+                file_precisions[input_file] = display_format
+                # For mixed models, only treat the primary precision as "already in input".
+                # This avoids marking all menu options as existing due to aux tensors.
+                if is_mixed:
+                    file_existing_precision_keys[input_file] = [primary_key] if primary_key else []
+                else:
+                    file_existing_precision_keys[input_file] = present_keys
             except Exception as e:
                 print(f"   {Fore.RED}Could not detect: {e}{Style.RESET_ALL}")
                 file_precisions[input_file] = None
+                file_existing_precision_keys[input_file] = []
         
         # For multiple files, ask if user wants batch or individual precision selection
         file_target_precisions = {}  # file -> list of target precisions
@@ -469,17 +474,17 @@ def run_interactive_mode():
                 print(f"\n{'-'*70}")
                 print(f"File {idx}: {os.path.basename(input_file)}")
                 if file_precisions.get(input_file):
-                    print(f"Input precision: {file_precisions[input_file]}")
+                    print(f"Input format: {file_precisions[input_file]}")
                 print(f"{'-'*70}")
                 
                 # Pass input files and file_precisions for individual mode
                 # For individual mode, pass just the single file
-                target_precs = get_precision_choice([input_file], file_precisions)
+                target_precs = get_precision_choice([input_file], file_existing_precision_keys)
                 file_target_precisions[input_file] = target_precs
         else:
             # Batch selection for all files
             # Pass all input files and file_precisions
-            target_precisions = get_precision_choice(input_files, file_precisions)
+            target_precisions = get_precision_choice(input_files, file_existing_precision_keys)
             
             # Apply same target precisions to all files
             for input_file in input_files:
@@ -511,8 +516,9 @@ def run_interactive_mode():
             
             # Get the detected precision from earlier
             detected_input_precision = file_precisions.get(input_file)
+            input_precision_keys = set(file_existing_precision_keys.get(input_file, []))
             if detected_input_precision:
-                print(f"Input precision: {detected_input_precision}")
+                print(f"Input format: {detected_input_precision}")
             
             # Auto-enable memory-efficient mode based on file size
             # Don't ask user, just auto-detect
@@ -530,10 +536,9 @@ def run_interactive_mode():
             target_precisions = file_target_precisions[input_file]
             
             for target_precision in target_precisions:
-                # Check if output precision matches input precision
-                target_dtype_str = str(str_to_dtype(target_precision)).replace('torch.', '')
-                if detected_input_precision and target_dtype_str == detected_input_precision:
-                    print(f"\nSkipping {target_precision.upper()} (already in this precision)")
+                # Optional skip behavior for existing precision in input model
+                if (not FORCE_RECONVERT_EXISTING_PRECISION) and (target_precision in input_precision_keys):
+                    print(f"\nSkipping {target_precision.upper()} (already present in input model)")
                     skipped_conversions += 1
                     continue
                 
